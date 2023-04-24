@@ -1,7 +1,11 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from webdriver_manager.chrome import ChromeDriverManager
 from getpass import getpass
+from bs4 import BeautifulSoup
 import pandas as pd
+import re
 
 class MLSData:
     def __init__(self) -> None:
@@ -9,9 +13,13 @@ class MLSData:
         self.floatLabels = ['player_price', 'avg_fantasy_pts', '3_wk_avg', '5_wk_avg', 'owned_by', '$/point']
         self.intLabels = ['games_played', 'total_fantasy_pts', 'last_wk_fantasy_pts', 'high_score', 'low_score', 'rd_8_rank', 'season_rank']
         
+        self.playerGameDataLabels = ['minutes', 'goals', 'assists', 'clean-sheets', 'penalty-saves', 'penalties-earned', 'penalty-misses', 'goals-against', 'saves', 'yellow-cards', 
+                          'red-cards', 'own-goals', 'tackles', 'passes', 'key-passes', 'crosses', 'big-chances-created', 'clearances', 'blocked-passes', 'interceptions',
+                          'recovered-balls', 'error-leading-to-goals', 'own-goal-assists', 'shots', 'was-fouled']
+        
     # extracts the MLS Fantasy website IDs of the 
     def extractFantasyIDs(self, email, password) -> None:
-        self.driver = webdriver.Firefox()
+        self.driver = webdriver.Chrome()
         self.driver.get("https://fantasy.mlssoccer.com/#login_gigya")
 
         # https://stackoverflow.com/questions/27112731/selenium-common-exceptions-nosuchelementexception-message-unable-to-locate-ele
@@ -116,10 +124,6 @@ class MLSData:
         opponents = gameTables[0].find_elements(By.CLASS_NAME, "fixture-opponent")
         points = gameTables[0].find_elements(By.CLASS_NAME, "points")
         
-        # getting data from the actual statistics table
-        dataRows = gameTables[1].find_elements(By.CLASS_NAME, 'row-table')
-        dataRows.pop() # removing header row
-        
         # revoing last row (overall row)
         roundIDs = roundIDs[:-1]
         opponents = opponents[:-1]
@@ -135,61 +139,41 @@ class MLSData:
             points[i] = int(points[i].text)
             
         # iterating through data rows, appending values
-        minutes = []
-        goals = []
-        assists = []
-        cleanSheets = []
-        penaltySaves = []
-        penaltiesEarned = []
-        penaltyMisses = []
-        goalsAgainst = []
-        saves = []
-        yellowCards = []
-        redCards = []
-        ownGoals = []
-        tackles = []
-        passes = []
-        keyPasses = []
-        crosses = []
-        bigChancesCreated = []
-        clearances = []
-        blockedPasses = []
-        interceptions = []
-        recoveredBalls = []
-        errorLeadingToGoals = []
-        ownGoalAssists = []
-        shots = []
-        wasFouled = []
+        # creating list via list comprehension with 25 arrays (for each data set) and 34 rows in each
+        playerGameData = [[0 for x in range(34)] for y in range(25)]
         
-        # array of arrays that holds the data for each specific game
-        playerGameData = [minutes, goals, assists, cleanSheets, penaltySaves, penaltiesEarned, penaltyMisses, goalsAgainst, saves, yellowCards, 
-                          redCards, ownGoals, tackles, passes, keyPasses, crosses, bigChancesCreated, clearances, blockedPasses, interceptions,
-                          recoveredBalls, errorLeadingToGoals, ownGoalAssists, shots, wasFouled]
+        htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
+        tables = htmlContent.find_all("div", {"class": "table-body"})
         
-        playerGameDataLabels = ['minutes', 'goals', 'assists', 'clean-sheets', 'penalty-saves', 'penalties-earned', 'penalty-misses', 'goals-against', 'saves', 'yellow-cards', 
-                          'red-cards', 'own-goals', 'tackles', 'passes', 'key-passes', 'crosses', 'big-chances-created', 'clearances', 'blocked-passes', 'interceptions',
-                          'recovered-balls', 'error-leading-to-goals', 'own-goal-assists', 'shots', 'was-fouled']
+        # now accessing second table's values, iterating through each row table
+        rows = tables[1].find_all("div", {"class": "row-table"})
+        rows.pop()
         
-        # iterating though each data row, appending values to playerGameData
-        for i in range (len(dataRows)):
-            # extracting all divs from with each 'row-table' element
-            divs = dataRows[i].find_elements(By.TAG_NAME, "div")
+        # now using the rows to add values to the table
+        for i in range(len(rows)):
+            divsInRow = rows[i].find_all("div")
             
-            # going through each div in a given row, and appending all the values to each corresponding array element
-            for j in range(len(divs)):
-                # getting value and storing it in corresponding array (within first paragraph)
-                statisticContainerElement = divs[j].find_element(By.TAG_NAME, "p")
+            for j in range(len(divsInRow)):
+                # parsing out first paragraph's values in a row
+                # https://www.geeksforgeeks.org/python-extract-numbers-from-string/
+                parsedValue = (divsInRow[j].find("p")).get_text()
+                temp = re.findall(r'\d+', parsedValue)
+                res = list(map(int, temp))
                 
-                # getting the associated array and then appendign an element to it
-                associatedArray = playerGameData[j]
-                associatedArray.append(statisticContainerElement.text)
+                # in case there are no numbers
+                if res == []:
+                    parsedValue = '-'
+                else:
+                    parsedValue = res[0]
+        
+                playerGameData[j][i] = parsedValue
             
         gamesDF['round_id'] = roundIDs
         gamesDF['fixture_opponent'] = opponents
         gamesDF['points'] = points
         
         for i in range (len(playerGameData)):
-            gamesDF[playerGameDataLabels[i]] = playerGameData[i]
+            gamesDF[self.playerGameDataLabels[i]] = playerGameData[i]
             
         return generalFantasyAttrDict, gamesDF
             
@@ -201,10 +185,7 @@ class MLSData:
             fantasyData.driver.get("https://fantasy.mlssoccer.com/#stats-center/player-profile/" + str(i))
             self.driver.implicitly_wait(1) 
             playerFantasyDict, playerGamesDF = self.extractPlayerFantasyData()
-            
-            print(playerFantasyDict)
-            print(playerGamesDF)
-        
+
 
 if __name__ == "__main__":
     email = input("Enter your MLS Fantasy Account email: ")
