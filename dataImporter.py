@@ -6,6 +6,7 @@ from getpass import getpass
 from bs4 import BeautifulSoup
 import pandas as pd
 import re
+import time
 
 class MLSData:
     def __init__(self) -> None:
@@ -136,7 +137,11 @@ class MLSData:
             tempOpponents = (opponents[i].text).split("\n")
             opponents[i] = tempOpponents[1]
             
-            points[i] = int(points[i].text)
+            # had to add a try-except statement since some of the players didn't have points posted
+            try:
+                points[i] = int(points[i].text)
+            except:
+                points[i] = 0
             
         # iterating through data rows, appending values
         # creating list via list comprehension with 25 arrays (for each data set) and 34 rows in each
@@ -182,10 +187,13 @@ class MLSData:
         self.extractFantasyIDs(email, password)
         
         for i in self.fantasyPlayerIDs:
-            fantasyData.driver.get("https://fantasy.mlssoccer.com/#stats-center/player-profile/" + str(i))
-            self.driver.implicitly_wait(1) 
+            fantasyData.driver.get("https://fantasy.mlssoccer.com/#stats-center/player-profile/" + str(i)) 
+            
             playerFantasyDict, playerGamesDF = self.extractPlayerFantasyData()
-
+            
+            print(playerFantasyDict)
+            print(playerGamesDF)
+            
 
 if __name__ == "__main__":
     email = input("Enter your MLS Fantasy Account email: ")
