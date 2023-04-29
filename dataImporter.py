@@ -6,14 +6,15 @@ from getpass import getpass
 from bs4 import BeautifulSoup
 import pandas as pd
 from playerData import PlayerData
+from generalData import GeneralData
 import time
+from datetime import date
 
 class DataImporter:
     def __init__(self) -> None:
         self.fantasyPlayerIDs = []
-        
-        # a data frame that contains the fantasy player IDs of each player, along with other general stats (kept in a row)
-        self.generalPlayerStats = pd.DataFrame()
+        self.generalTable = GeneralData()
+        self.dateSubstring = "_" + str(date.today()) + "data"
         
     # extracts the MLS Fantasy website IDs of the 
     def extractFantasyIDs(self, email, password) -> None:
@@ -75,16 +76,25 @@ class DataImporter:
             time.sleep(0.25)
             player = self.extractPlayerFantasyData()
             
-            print(player.generalFantasyAttrDict)
-            print(player.gamesDF)
-            
-            fptr = open("test.csv", "w")
+            # writing individual file player data
+            fptr = open(str(i) + self.dateSubstring + ".csv", "w")
             player.gamesDF.to_csv(fptr)
             fptr.close()
+            
+            self.generalTable.appendListEntry(i, player.generalFantasyAttrDict)
+    
+        # now writing general table to a file after appending all the other data
+        generalDF = self.generalTable.createDF()
+        fptr = open("general" + self.dateSubstring + ".csv", "w")
+        generalDF.to_csv(fptr)
+        fptr.close()
+        
+        
             
 if __name__ == "__main__":
     email = input("Enter your MLS Fantasy Account email: ")
     password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
+    
     
     fantasyData = DataImporter()  
     fantasyData.extractMLSFantasyData(email, password)

@@ -6,14 +6,18 @@ class PlayerData:
     def __init__(self) -> None:
         self.generalFantasyAttrDict = {}
         self.gamesDF = pd.DataFrame()
+        self.dictLabels = ['player_name', 'player_team', 'player_pos', 'player_price', 'player_avail', 'games_played', 'avg_fantasy_pts', 
+                           'total_fantasy_pts', 'last_wk_fantasy_pts', '3_wk_avg', '5_wk_avg', 'high_score', 'low_score', 'owned_by', 
+                           '$/point', 'rd_9_rank', 'season_rank']
         self.floatLabels = ['player_price', 'avg_fantasy_pts', '3_wk_avg', '5_wk_avg', 'owned_by', '$/point']
         self.intLabels = ['games_played', 'total_fantasy_pts', 'last_wk_fantasy_pts', 'high_score', 'low_score', 'rd_8_rank', 'season_rank']
         self.playerGameDataLabels = ['minutes', 'goals', 'assists', 'clean-sheets', 'penalty-saves', 'penalties-earned', 'penalty-misses', 'goals-against', 'saves', 'yellow-cards', 
                           'red-cards', 'own-goals', 'tackles', 'passes', 'key-passes', 'crosses', 'big-chances-created', 'clearances', 'blocked-passes', 'interceptions',
                           'recovered-balls', 'error-leading-to-goals', 'own-goal-assists', 'shots', 'was-fouled']
         
+    # takes HTML content from MLS Fantasy player page, loads it into this PlayerData instance
     def parseData(self, htmlContent):
-                # getting data from tables
+        # getting data from tables
         
         playerName = (htmlContent.find("p", {"class":"profile-name"}).get_text()).strip()
         self.generalFantasyAttrDict.update({"player_name" : playerName})
