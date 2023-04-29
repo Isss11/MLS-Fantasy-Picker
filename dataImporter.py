@@ -8,7 +8,7 @@ import pandas as pd
 import re
 import time
 
-class MLSData:
+class DataImporter:
     def __init__(self) -> None:
         self.fantasyPlayerIDs = []
         self.floatLabels = ['player_price', 'avg_fantasy_pts', '3_wk_avg', '5_wk_avg', 'owned_by', '$/point']
@@ -17,6 +17,9 @@ class MLSData:
         self.playerGameDataLabels = ['minutes', 'goals', 'assists', 'clean-sheets', 'penalty-saves', 'penalties-earned', 'penalty-misses', 'goals-against', 'saves', 'yellow-cards', 
                           'red-cards', 'own-goals', 'tackles', 'passes', 'key-passes', 'crosses', 'big-chances-created', 'clearances', 'blocked-passes', 'interceptions',
                           'recovered-balls', 'error-leading-to-goals', 'own-goal-assists', 'shots', 'was-fouled']
+        
+        # a data frame that contains the fantasy player IDs of each player, along with other general stats (kept in a row)
+        self.generalPlayerStats = pd.DataFrame()
         
     # extracts the MLS Fantasy website IDs of the 
     def extractFantasyIDs(self, email, password) -> None:
@@ -63,39 +66,47 @@ class MLSData:
     def extractPlayerFantasyData(self):
         generalFantasyAttrDict = {}
         gamesDF = pd.DataFrame()
+        htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
         
         # getting data from tables
-        playerName = (self.driver.find_element(By.CLASS_NAME, "profile-name")).text
+        
+        playerName = (htmlContent.find("p", {"class":"profile-name"}).get_text()).strip()
         generalFantasyAttrDict.update({"player_name" : playerName})
         
-        playerTeam = (self.driver.find_element(By.CLASS_NAME, "player-team")).text
+        playerTeam = (htmlContent.find("p", {"class":"player-team"}).get_text()).strip()
         generalFantasyAttrDict.update({"player_team" : playerTeam})
         
-        playerPosPriceStringArray = ((self.driver.find_element(By.CLASS_NAME, "player-pos")).text).split(" | ")
+        playerPosPriceStringArray = (htmlContent.find("p", {"class":"player-pos"}).get_text()).strip()    
+        playerPosPriceStringArray = playerPosPriceStringArray.split("|")
         
-        playerPos = (playerPosPriceStringArray[0])[:-1]
+        playerPosPriceStringArray[0] = playerPosPriceStringArray[0].split()[0]
+        playerPosPriceStringArray[1] = playerPosPriceStringArray[1].split()[-1]
+        
+        playerPos = (playerPosPriceStringArray[0])
         generalFantasyAttrDict.update({"player_pos" : playerPos})
+        playerPrice = playerPosPriceStringArray[1][0:-1]
         
-        playerPrice = playerPosPriceStringArray[1]
-        playerPrice = float(playerPrice[2:len(playerPrice) - 1]) * 1000000 # converting to millions
+        playerPrice = float(playerPrice) * 1000000 # converting to millions
         generalFantasyAttrDict.update({"player_price" : playerPrice})
         
         # getting if player is playing by asking for a needed class
-        try:
-            self.driver.find_element(By.CLASS_NAME, "playing")
-            playerAvail = True
-        except Exception:
-            playerAvail = False
         
+        playerAvail = (htmlContent.find("i", {"class" : "playing"})) != None
         generalFantasyAttrDict.update({"player_avail" : str(playerAvail)})
             
-        generalFantasyStatLabels = self.driver.find_elements(By.CLASS_NAME, "pl-stat-label")
-        generalFantasyStats = self.driver.find_elements(By.CLASS_NAME, "pl-stat-data")
+        generalFantasyStatLabels = htmlContent.find_all("p", {"class" : "pl-stat-label"})
+        
+        for i in range(len(generalFantasyStatLabels)):
+            generalFantasyStatLabels[i] = generalFantasyStatLabels[i].get_text()
+        
+        generalFantasyStats = htmlContent.find_all("p", {"class" : "pl-stat-data"})
+        
+        for i in range(len(generalFantasyStats)):
+            generalFantasyStats[i] = generalFantasyStats[i].get_text()
         
         # replacing element references with their corresponding texts
         for i in range(len(generalFantasyStatLabels)):
-            generalFantasyStatLabels[i] = generalFantasyStatLabels[i].text
-            generalFantasyStats[i] = generalFantasyStats[i].text
+            generalFantasyStats[i] = generalFantasyStats[i]
             
             generalFantasyStatLabels[i] = generalFantasyStatLabels[i].replace(" ", "_")
             generalFantasyStatLabels[i] = generalFantasyStatLabels[i].lower()
@@ -118,37 +129,40 @@ class MLSData:
             
         # now extracting player match data and storing it
         # gameTables[0] holds fixture, and gameTables[1] holds corresponding data
-        gameTables = self.driver.find_elements(By.CLASS_NAME, "table-body")
+        tables = htmlContent.find_all("div", {"class": "table-body"})
         
         # getting all fixtures and fixture IDs
-        roundIDs = gameTables[0].find_elements(By.CLASS_NAME, "round-id")
-        opponents = gameTables[0].find_elements(By.CLASS_NAME, "fixture-opponent")
-        points = gameTables[0].find_elements(By.CLASS_NAME, "points")
+        roundIDs = tables[0].find_all("div", {"class" : "round-id"})
+        opponents = tables[0].find_all("div", {"class" : "fixture-opponent"})
+        points = tables[0].find_all("div", {"class" : "points"})
         
-        # revoing last row (overall row)
+        
+        # removing last row ('all' row) and getting text
         roundIDs = roundIDs[:-1]
         opponents = opponents[:-1]
         points = points[:-1]
         
+        for i in range(len(roundIDs)):
+            roundIDs[i] = (roundIDs[i].get_text()).strip()
+            opponents[i] = (opponents[i].get_text()).strip()
+            points[i] = (points[i].get_text()).strip()
+        
         # getting associated values with elements and replacing them
         for i in range (len(roundIDs)):
-            roundIDs[i] = int(roundIDs[i].text)
+            roundIDs[i] = int(roundIDs[i])
             
-            tempOpponents = (opponents[i].text).split("\n")
+            tempOpponents = (opponents[i]).split("\n")
             opponents[i] = tempOpponents[1]
             
             # had to add a try-except statement since some of the players didn't have points posted
             try:
-                points[i] = int(points[i].text)
+                points[i] = int(points[i])
             except:
                 points[i] = 0
             
         # iterating through data rows, appending values
         # creating list via list comprehension with 25 arrays (for each data set) and 34 rows in each
         playerGameData = [[0 for x in range(34)] for y in range(25)]
-        
-        htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
-        tables = htmlContent.find_all("div", {"class": "table-body"})
         
         # now accessing second table's values, iterating through each row table
         rows = tables[1].find_all("div", {"class": "row-table"})
@@ -194,10 +208,14 @@ class MLSData:
             print(playerFantasyDict)
             print(playerGamesDF)
             
+            fptr = open("test.csv", "w")
+            playerGamesDF.to_csv(fptr)
+            fptr.close()
+            
 
 if __name__ == "__main__":
     email = input("Enter your MLS Fantasy Account email: ")
     password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
     
-    fantasyData = MLSData()  
+    fantasyData = DataImporter()  
     fantasyData.extractMLSFantasyData(email, password)
