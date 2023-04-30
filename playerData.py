@@ -8,9 +8,9 @@ class PlayerData:
         self.gamesDF = pd.DataFrame()
         self.dictLabels = ['player_name', 'player_team', 'player_pos', 'player_price', 'player_avail', 'games_played', 'avg_fantasy_pts', 
                            'total_fantasy_pts', 'last_wk_fantasy_pts', '3_wk_avg', '5_wk_avg', 'high_score', 'low_score', 'owned_by', 
-                           '$/point', 'rd_9_rank', 'season_rank']
+                           '$/point', 'round-rank', 'season_rank']
         self.floatLabels = ['player_price', 'avg_fantasy_pts', '3_wk_avg', '5_wk_avg', 'owned_by', '$/point']
-        self.intLabels = ['games_played', 'total_fantasy_pts', 'last_wk_fantasy_pts', 'high_score', 'low_score', 'rd_8_rank', 'season_rank']
+        self.intLabels = ['games_played', 'total_fantasy_pts', 'last_wk_fantasy_pts', 'high_score', 'low_score', 'round_rank', 'season_rank']
         self.playerGameDataLabels = ['minutes', 'goals', 'assists', 'clean-sheets', 'penalty-saves', 'penalties-earned', 'penalty-misses', 'goals-against', 'saves', 'yellow-cards', 
                           'red-cards', 'own-goals', 'tackles', 'passes', 'key-passes', 'crosses', 'big-chances-created', 'clearances', 'blocked-passes', 'interceptions',
                           'recovered-balls', 'error-leading-to-goals', 'own-goal-assists', 'shots', 'was-fouled']
@@ -50,15 +50,15 @@ class PlayerData:
         
         generalFantasyStats = htmlContent.find_all("p", {"class" : "pl-stat-data"})
         
-        for i in range(len(generalFantasyStats)):
-            generalFantasyStats[i] = generalFantasyStats[i].get_text()
-        
         # replacing element references with their corresponding texts
         for i in range(len(generalFantasyStatLabels)):
-            generalFantasyStats[i] = generalFantasyStats[i]
+            generalFantasyStats[i] = generalFantasyStats[i].get_text()
             
             generalFantasyStatLabels[i] = generalFantasyStatLabels[i].replace(" ", "_")
             generalFantasyStatLabels[i] = generalFantasyStatLabels[i].lower()
+            
+            # replacing current # round rank with just a generic name
+            generalFantasyStatLabels[-2] = self.dictLabels[-2]
             
             if generalFantasyStatLabels[i] in self.floatLabels:
                 # just manually calculating this value instead of using MLS database
