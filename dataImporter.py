@@ -17,6 +17,7 @@ class DataImporter:
         self.generalTable = GeneralData()
         self.dateSubstring = str(date.today()) + "_data"
         self.dataFolder = "./" + self.dateSubstring
+        self.playerDataSets = []
         
         try:
             os.mkdir(self.dataFolder)
@@ -51,14 +52,14 @@ class DataImporter:
         self.driver.get("https://fantasy.mlssoccer.com/#stats-center")
 
         # now getting all player IDs
-        time.sleep(5) # FIXME temporary solution
+        time.sleep(10) # FIXME temporary solution
 
         # using BeautifulSoup to retrieve rows
         htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
         
         playersRows = htmlContent.find_all("a", {"class" : "player-name"})
 
-        print("Player rows " + str(playersRows))
+        print(str(len(playersRows)))
 
         for i in playersRows:
             self.fantasyPlayerIDs.append(int(i['data-player_id']))
@@ -84,7 +85,20 @@ class DataImporter:
             
     # calls on needed functions to get all our MLS Fantasy data  
     def extractMLSFantasyData(self, email, password) -> None:
+        # clearing current data sets
+        self.playerDataSets = []
+        self.generalDF = []
+        self.fantasyPlayerIDs = []
+        
         self.extractFantasyIDs(email, password)
+        
+        # save fantasy IDs to a file
+        fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.dateSubstring + ".csv", "w")
+    
+        for i in self.fantasyPlayerIDs:
+            fptr.write(str(i) + ", ")
+            
+        fptr.close()
         
         for i in self.fantasyPlayerIDs:
             fantasyData.driver.get("https://fantasy.mlssoccer.com/#stats-center/player-profile/" + str(i)) 
@@ -98,24 +112,53 @@ class DataImporter:
             fptr.close()
             
             self.generalTable.appendListEntry(i, player.generalFantasyAttrDict)
+            self.playerDataSets.append(player)
     
         # now writing general table to a file after appending all the other data
-        generalDF = self.generalTable.createDF()
+        self.generalDF = self.generalTable.createDF()
         fptr = open(self.dateSubstring + "\\" + "general$" + self.dateSubstring + ".csv", "w")
-        generalDF.to_csv(fptr)
+        self.generalDF.to_csv(fptr)
         fptr.close()
+     
+    # loads all data, both general and player specific data frames   
+    def loadData(self):
+        # reading ID data to get IDs
+        fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.dateSubstring + ".csv", "r")
+        stringIDs = fptr.read().split(", ")
+        fptr.close()
+        stringIDs = stringIDs[0:-1]
+        
+        # resetting player IDs currently loaded, and appending IDs to array
+        self.fantasyPlayerIDs = []
+        
+        for i in stringIDs:
+            self.fantasyPlayerIDs.append(int(i))
             
+        for i in self.fantasyPlayerIDs:            
+            # writing individual file player data
+            fptr = open(self.dateSubstring + "\\" + str(i) + "$" + self.dateSubstring + ".csv", "r")
+            
+            player = PlayerData()
+            player.gamesDF = pd.read_csv(fptr)
+            
+            # FIXME will need to append in general data here
+            
+            fptr.close()
+            
+            self.playerDataSets.append(player)
 if __name__ == "__main__":
-    email = input("Enter your MLS Fantasy Account email: ")
-    password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
+    # email = input("Enter your MLS Fantasy Account email: ")
+    # password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
     
     
     fantasyData = DataImporter()  
     
-    start = time.time()
-    fantasyData.extractMLSFantasyData(email, password)
-    end = time.time()
+    fantasyData.loadData()
     
-    totalTime = end - start
+    # start = time.time()
+    # fantasyData.extractMLSFantasyData(email, password)
+    # end = time.time()
     
-    print("Parsed %s players in %s seconds." % (str(len(fantasyData.fantasyPlayerIDs)), str(totalTime)))
+    # totalTime = end - start
+    
+    # print("Parsed %s players in %s seconds." % (str(len(fantasyData.fantasyPlayerIDs)), str(totalTime)))

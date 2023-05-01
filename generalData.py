@@ -44,15 +44,12 @@ class GeneralData:
     # once all the data values have been appended, create the general DF
     def createDF(self):
         generalDF = pd.DataFrame()
-        
-        print(self.generalDataLists)
 
         generalDF['playerIDs'] = self.playerIDs
         
         for i in range (1, len(self.generalDataLists)):
-            print(self.playerDataLabels[i - 1])
-            print(self.generalDataLists[i])
             
             generalDF[self.playerDataLabels[i - 1]] = self.generalDataLists[i]
             
         return generalDF
+        
