@@ -15,6 +15,7 @@ class GeneralData:
         self.playerNames = []
         self.playerTeams = []
         self.playerPositions = []
+        self.playerPrices = []
         self.playerAvails = []
         self.playerGames = []
         self.averageFantasyPoints = []
@@ -29,7 +30,7 @@ class GeneralData:
         self.roundRank = []
         self.seasonRank = []
         
-        self.generalDataLists = [self.playerIDs, self.playerNames, self.playerTeams, self.playerPositions, self.playerAvails, self.playerGames, self.averageFantasyPoints, 
+        self.generalDataLists = [self.playerIDs, self.playerNames, self.playerTeams, self.playerPositions, self.playerPrices, self.playerAvails, self.playerGames, self.averageFantasyPoints, 
                                  self.totalFantasyPoints, self.lastWeekFantasyPoints, self.threeWeekAverages, self.fiveWeekAverages, self.highScores, 
                                  self.lowScores, self.ownedBy, self.dollarsPerPoint, self.roundRank, self.seasonRank]
         
@@ -38,8 +39,8 @@ class GeneralData:
         self.playerIDs.append(id)
         
         # now iterating through dictionary and appending values to corresponding arrays
-        for i in range(1, len(self.playerDataLabels)):
-            self.generalDataLists[i].append(dictionary[self.playerDataLabels[i]])
+        for i in range(0, len(self.playerDataLabels)):
+            self.generalDataLists[i + 1].append(dictionary[self.playerDataLabels[i]])
         
     # once all the data values have been appended, create the general DF
     def createDF(self):

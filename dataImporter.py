@@ -15,8 +15,10 @@ class DataImporter:
     def __init__(self) -> None:
         self.fantasyPlayerIDs = []
         self.generalTable = GeneralData()
-        self.dateSubstring = str(date.today()) + "_data"
+        self.date = str(date.today())
+        self.dateSubstring = self.date + "_data"
         self.dataFolder = "./" + self.dateSubstring
+        self.generalFileName = self.dateSubstring + "\\" + "general$" + self.dateSubstring + ".csv"
         self.playerDataSets = []
         
         try:
@@ -28,7 +30,6 @@ class DataImporter:
         
     # extracts the MLS Fantasy website IDs of the players
     
-    # FIXME -- use Beautifulsoup to extract IDs, will be faster and will consistently get all the players
     def extractFantasyIDs(self, email, password) -> None:
         self.driver = webdriver.Chrome()
         self.driver.get("https://fantasy.mlssoccer.com/#login_gigya")
@@ -52,17 +53,18 @@ class DataImporter:
         self.driver.get("https://fantasy.mlssoccer.com/#stats-center")
 
         # now getting all player IDs
-        time.sleep(10) # FIXME temporary solution
+        time.sleep(5) # FIXME temporary solution
 
         # using BeautifulSoup to retrieve rows
         htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
         
         playersRows = htmlContent.find_all("a", {"class" : "player-name"})
 
-        print(str(len(playersRows)))
-
         for i in playersRows:
             self.fantasyPlayerIDs.append(int(i['data-player_id']))
+            
+        # FIXME -- this has been created to speed up testing for other parts of program, will remove later
+        self.fantasyPlayerIDs = self.fantasyPlayerIDs[0:20]
             
     # extracts player IDs from a given webpage and returns a dictionary, and a Pandas data frame that contains game info
     def extractPlayerFantasyData(self):
@@ -73,13 +75,13 @@ class DataImporter:
         
         # will wait an additional period of time if there is an error with parsing
         # temporary solution before coming up with more elegant solution
-        while not parsedCorrectly:
-            try:
-                player.parseData(htmlContent)
-                parsedCorrectly = True
-            except Exception:
-                print("Did not parse correctly. Waiting 0.5 seconds more for page to load.")
-                time.sleep(0.5)
+        # while not parsedCorrectly:
+        #     try:
+        player.parseData(htmlContent)
+                # parsedCorrectly = True
+            # except Exception:
+            #     print("Did not parse correctly. Waiting 0.5 seconds more for page to load.")
+            #     time.sleep(0.5)
             
         return player
             
@@ -93,7 +95,7 @@ class DataImporter:
         self.extractFantasyIDs(email, password)
         
         # save fantasy IDs to a file
-        fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.dateSubstring + ".csv", "w")
+        fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.date + "_data" + ".csv", "w")
     
         for i in self.fantasyPlayerIDs:
             fptr.write(str(i) + ", ")
@@ -107,6 +109,7 @@ class DataImporter:
             player = self.extractPlayerFantasyData()
             
             # writing individual file player data
+            # FIXME - has issues with permissions in some cases
             fptr = open(self.dateSubstring + "\\" + str(i) + "$" + self.dateSubstring + ".csv", "w")
             player.gamesDF.to_csv(fptr)
             fptr.close()
@@ -116,14 +119,14 @@ class DataImporter:
     
         # now writing general table to a file after appending all the other data
         self.generalDF = self.generalTable.createDF()
-        fptr = open(self.dateSubstring + "\\" + "general$" + self.dateSubstring + ".csv", "w")
+        fptr = open(self.generalFileName, "w")
         self.generalDF.to_csv(fptr)
         fptr.close()
      
     # loads all data, both general and player specific data frames   
-    def loadData(self):
+    def loadData(self, date):
         # reading ID data to get IDs
-        fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.dateSubstring + ".csv", "r")
+        fptr = open(date + "_data\\" + "fantasyIDs$" + date + "_data" + ".csv", "r")
         stringIDs = fptr.read().split(", ")
         fptr.close()
         stringIDs = stringIDs[0:-1]
@@ -134,14 +137,20 @@ class DataImporter:
         for i in stringIDs:
             self.fantasyPlayerIDs.append(int(i))
             
-        for i in self.fantasyPlayerIDs:            
+        # load general data frame
+        fptr = open(self.generalFileName, "r")
+        self.generalDF = pd.read_csv(fptr)
+        fptr.close()
+            
+        for i in range(len(self.fantasyPlayerIDs)):            
             # writing individual file player data
-            fptr = open(self.dateSubstring + "\\" + str(i) + "$" + self.dateSubstring + ".csv", "r")
+            fptr = open(date + "_data\\" + str(self.fantasyPlayerIDs[i]) + "$" + date + "_data" + ".csv", "r")
             
             player = PlayerData()
             player.gamesDF = pd.read_csv(fptr)
             
-            # FIXME will need to append in general data here
+            for j in range(len(player.dictLabels)):
+                player.generalFantasyAttrDict[player.dictLabels[j]] = self.generalDF.iloc[i][player.dictLabels[j]]
             
             fptr.close()
             
@@ -150,10 +159,9 @@ if __name__ == "__main__":
     # email = input("Enter your MLS Fantasy Account email: ")
     # password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
     
-    
     fantasyData = DataImporter()  
     
-    fantasyData.loadData()
+    fantasyData.loadData("2023-05-01")
     
     # start = time.time()
     # fantasyData.extractMLSFantasyData(email, password)
@@ -162,3 +170,5 @@ if __name__ == "__main__":
     # totalTime = end - start
     
     # print("Parsed %s players in %s seconds." % (str(len(fantasyData.fantasyPlayerIDs)), str(totalTime)))
+    
+    
