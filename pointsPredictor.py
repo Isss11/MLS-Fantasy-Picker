@@ -1,5 +1,6 @@
 import pandas as pd
 from dataImporter import DataImporter
+from picker import Picker
 
 # takes all the players that were parsed by the dataImporter class and creates a simple set of predictions for all positions
 class PointsPredictor:
@@ -40,31 +41,48 @@ class PointsPredictor:
         self.defendersPredictions = self.createPredictionTable(defenders)
         self.goalkeepersPredictions = self.createPredictionTable(goalkeepers)
         
-        print(str(self.forwardsPredictions))
-        print(str(self.midfieldersPredictions))
-        print(str(self.defendersPredictions))
-        print(str(self.goalkeepersPredictions))
-        
     # takes a subset of the original players array (e.g. just the midfielders, and creates the DF)
     def createPredictionTable(self, playerSubset):
         playerNames = []
         predictedScores = []
+        playerPrices = []
+        dollarsPerPoint = []
         playersSubsetDF = pd.DataFrame()
         
         # now iterates through and appends data to the arrays to create the data frame later
         for i in range(len(playerSubset)):
             playerNames.append(playerSubset[i].generalFantasyAttrDict['player_name'])
             predictedScores.append(playerSubset[i].generalFantasyAttrDict['avg_fantasy_pts'])
+            playerPrices.append(playerSubset[i].generalFantasyAttrDict['player_price'])
+            dollarsPerPoint.append(playerSubset[i].generalFantasyAttrDict['$/point'])
         
         playersSubsetDF["player_name"] = playerNames
-        playersSubsetDF["predictedScore"] = predictedScores
+        playersSubsetDF["player_price"] = playerPrices
+        playersSubsetDF["$/point"] = dollarsPerPoint
+        playersSubsetDF["predicted_score"] = predictedScores
         
         return playersSubsetDF
         
 if __name__ == "__main__":
     mlsData = DataImporter()
     
-    mlsData.loadData("2023-05-01")
+    mlsData.loadData("2023-05-06")
     
     predictor = PointsPredictor()
     predictor.predict(mlsData.playerDataSets)
+    
+    # now creating the picker
+    picker = Picker(predictor.goalkeepersPredictions, predictor.defendersPredictions,
+                    predictor.midfieldersPredictions, predictor.forwardsPredictions)
+    
+    print(predictor.goalkeepersPredictions)
+    print(predictor.defendersPredictions)
+    print(predictor.midfieldersPredictions)
+    print(predictor.forwardsPredictions)
+    
+    goalkeepersChosen, defendersChosen, midfieldersChosen, forwardsChosen = picker.pickTeam()
+    
+    print("Goalkeepers:", goalkeepersChosen)
+    print("Defenders:", defendersChosen)
+    print("Midfielders:", midfieldersChosen)
+    print("Forwards", forwardsChosen)

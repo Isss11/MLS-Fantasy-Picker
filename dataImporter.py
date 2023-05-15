@@ -64,7 +64,7 @@ class DataImporter:
             self.fantasyPlayerIDs.append(int(i['data-player_id']))
             
         # FIXME -- this has been created to speed up testing for other parts of program, will remove later
-        self.fantasyPlayerIDs = self.fantasyPlayerIDs[0:20]
+        self.fantasyPlayerIDs = self.fantasyPlayerIDs[0:50]
             
     # extracts player IDs from a given webpage and returns a dictionary, and a Pandas data frame that contains game info
     def extractPlayerFantasyData(self):
@@ -138,7 +138,8 @@ class DataImporter:
             self.fantasyPlayerIDs.append(int(i))
             
         # load general data frame
-        fptr = open(self.generalFileName, "r")
+        fileName = date + "_data\\" + "general$" + date + "_data.csv"
+        fptr = open(fileName, "r")
         self.generalDF = pd.read_csv(fptr)
         fptr.close()
             
@@ -156,19 +157,19 @@ class DataImporter:
             
             self.playerDataSets.append(player)
 if __name__ == "__main__":
-    # email = input("Enter your MLS Fantasy Account email: ")
-    # password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
+    email = input("Enter your MLS Fantasy Account email: ")
+    password = getpass("Enter your MLS Fantasy Account password (won't display your input): ")
     
     fantasyData = DataImporter()  
     
-    fantasyData.loadData("2023-05-01")
+    # fantasyData.loadData("2023-05-01")
     
-    # start = time.time()
-    # fantasyData.extractMLSFantasyData(email, password)
-    # end = time.time()
+    start = time.time()
+    fantasyData.extractMLSFantasyData(email, password)
+    end = time.time()
     
-    # totalTime = end - start
+    totalTime = end - start
     
-    # print("Parsed %s players in %s seconds." % (str(len(fantasyData.fantasyPlayerIDs)), str(totalTime)))
+    print("Parsed %s players in %s seconds." % (str(len(fantasyData.fantasyPlayerIDs)), str(totalTime)))
     
     
