@@ -63,7 +63,10 @@ class PlayerData:
             if generalFantasyStatLabels[i] in self.floatLabels:
                 # just manually calculating this value instead of using MLS database
                 if generalFantasyStatLabels[i] == '$/point':
-                    generalFantasyStats[i] = playerPrice / generalFantasyStats[2] # index 2 corresponds to points
+                    try:
+                        generalFantasyStats[i] = playerPrice / generalFantasyStats[2] # index 2 corresponds to points
+                    except ZeroDivisionError:
+                        generalFantasyStats[i] = 0
                 else:
                     generalFantasyStats[i] = float(generalFantasyStats[i])
             elif generalFantasyStatLabels[i] in self.intLabels:

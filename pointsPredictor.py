@@ -66,7 +66,7 @@ class PointsPredictor:
 if __name__ == "__main__":
     mlsData = DataImporter()
     
-    mlsData.loadData("2023-05-06")
+    mlsData.loadData("2023-05-14")
     
     predictor = PointsPredictor()
     predictor.predict(mlsData.playerDataSets)
@@ -80,9 +80,27 @@ if __name__ == "__main__":
     print(predictor.midfieldersPredictions)
     print(predictor.forwardsPredictions)
     
-    goalkeepersChosen, defendersChosen, midfieldersChosen, forwardsChosen = picker.pickTeam()
+    picker.pickTeam()
     
-    print("Goalkeepers:", goalkeepersChosen)
-    print("Defenders:", defendersChosen)
-    print("Midfielders:", midfieldersChosen)
-    print("Forwards", forwardsChosen)
+    print("Goalkeepers:", picker.goalkeepersChosen)
+    print("Defenders:", picker.defendersChosen)
+    print("Midfielders:", picker.midfieldersChosen)
+    print("Forwards", picker.forwardsChosen)
+    
+    # printing out actual players
+    print("\nCHOSEN PLAYERS\n**************")
+    print("Goalkeepers")
+    for i in range(2):
+        print(predictor.goalkeepersPredictions.iloc[picker.goalkeepersChosen[i]])
+        
+    print("Defenders")
+    for i in range(5):
+        print(predictor.defendersPredictions.iloc[picker.defendersChosen[i]])
+        
+    print("Midfielders")
+    for i in range(5):
+        print(predictor.midfieldersPredictions.iloc[picker.midfieldersChosen[i]])
+        
+    print("Forwards")
+    for i in range(3):
+        print(predictor.forwardsPredictions.iloc[picker.forwardsChosen[i]])

@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
@@ -10,6 +11,7 @@ from generalData import GeneralData
 import time
 from datetime import date
 import os
+from os.path import exists
 
 class DataImporter:
     def __init__(self) -> None:
@@ -31,15 +33,20 @@ class DataImporter:
     # extracts the MLS Fantasy website IDs of the players
     
     def extractFantasyIDs(self, email, password) -> None:
-        self.driver = webdriver.Chrome()
+        options = webdriver.ChromeOptions()
+        options.add_argument("headless")
+        
+        # https://stackoverflow.com/questions/65080685/usb-usb-device-handle-win-cc1020-failed-to-read-descriptor-from-node-connectio
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        
+        self.driver = webdriver.Chrome(options=options)
         self.driver.get("https://fantasy.mlssoccer.com/#login_gigya")
 
-        # https://stackoverflow.com/questions/27112731/selenium-common-exceptions-nosuchelementexception-message-unable-to-locate-ele
-
-        self.driver.maximize_window() # For maximizing window
-
         # tells the driver to wait for the page to load so we can properly extract elements
-        self.driver.implicitly_wait(5) 
+        # https://stackoverflow.com/questions/20903231/how-to-make-selenium-wait-until-an-element-is-present
+        WebDriverWait(self.driver, timeout=5).until(lambda d: d.find_element(By.ID, "gigya-textbox-141263563588013010"))
+        WebDriverWait(self.driver, timeout=5).until(lambda d: d.find_element(By.CLASS_NAME, "gigya-input-password"))
+        WebDriverWait(self.driver, timeout=5).until(lambda d: d.find_element(By.CLASS_NAME, "gigya-input-submit"))
 
         # sending password and email and logging into MLS Fantasy
         emailInput = self.driver.find_element(By.ID, "gigya-textbox-141263563588013010")
@@ -51,37 +58,45 @@ class DataImporter:
 
         # now getting Stats Centre webpage and clicking load more (a maximum of) 20 times to make sure we're getting all the needed players
         self.driver.get("https://fantasy.mlssoccer.com/#stats-center")
+        
+        # waiting for load more button to appear, then repeatedly clicking it until it doesn't exist anymore
+        WebDriverWait(self.driver, timeout=5).until(lambda d: d.find_element(By.CLASS_NAME, "load-more"))
+
+        doneLoading = False
+        
+        while not doneLoading:
+            self.driver.implicitly_wait(1)
+            try:
+                loadMoreButton = self.driver.find_element(By.CLASS_NAME, "load-more")
+                loadMoreButton.click()
+            # once we the load button disappears (no more players to load)
+            except Exception:
+                doneLoading = True 
 
         # now getting all player IDs
-        time.sleep(5) # FIXME temporary solution
-
         # using BeautifulSoup to retrieve rows
         htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
-        
         playersRows = htmlContent.find_all("a", {"class" : "player-name"})
+        
+        # if we didn't get all the players rows (shouldn't be 200, just wait for a bit longer and retreive information again)
+        while (len(playersRows) <= 200):
+            htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
+            playersRows = htmlContent.find_all("a", {"class" : "player-name"})
+            self.driver.implicitly_wait(1)
+            print(len(playersRows))
 
         for i in playersRows:
             self.fantasyPlayerIDs.append(int(i['data-player_id']))
             
-        # FIXME -- this has been created to speed up testing for other parts of program, will remove later
-        self.fantasyPlayerIDs = self.fantasyPlayerIDs[0:50]
-            
     # extracts player IDs from a given webpage and returns a dictionary, and a Pandas data frame that contains game info
     def extractPlayerFantasyData(self):
-        htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
         player = PlayerData()
-        parsedCorrectly = False # to handle errors with page loading
         
+        # waiting for the player name to load before parsing the HTML content
+        WebDriverWait(self.driver, timeout=5).until(lambda d: d.find_element(By.CLASS_NAME, "profile-name"))
         
-        # will wait an additional period of time if there is an error with parsing
-        # temporary solution before coming up with more elegant solution
-        # while not parsedCorrectly:
-        #     try:
+        htmlContent = BeautifulSoup(self.driver.page_source, 'html.parser')
         player.parseData(htmlContent)
-                # parsedCorrectly = True
-            # except Exception:
-            #     print("Did not parse correctly. Waiting 0.5 seconds more for page to load.")
-            #     time.sleep(0.5)
             
         return player
             
@@ -92,24 +107,28 @@ class DataImporter:
         self.generalDF = []
         self.fantasyPlayerIDs = []
         
+        # getting MLS Fantasy IDs, and then finding all the ones that don't have files created
         self.extractFantasyIDs(email, password)
+        remainingPlayerIDs = self.getNonLoadedPlayers()
         
         # save fantasy IDs to a file
         fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.date + "_data" + ".csv", "w")
     
-        for i in self.fantasyPlayerIDs:
+        for i in remainingPlayerIDs:
             fptr.write(str(i) + ", ")
             
         fptr.close()
         
-        for i in self.fantasyPlayerIDs:
+        for i in remainingPlayerIDs:
+            print(i)
             fantasyData.driver.get("https://fantasy.mlssoccer.com/#stats-center/player-profile/" + str(i)) 
+            
+            # sleeping so that I slow down requests to the server and avoid an IP address ban
             time.sleep(0.5)
             
             player = self.extractPlayerFantasyData()
             
             # writing individual file player data
-            # FIXME - has issues with permissions in some cases
             fptr = open(self.dateSubstring + "\\" + str(i) + "$" + self.dateSubstring + ".csv", "w")
             player.gamesDF.to_csv(fptr)
             fptr.close()
@@ -122,6 +141,18 @@ class DataImporter:
         fptr = open(self.generalFileName, "w")
         self.generalDF.to_csv(fptr)
         fptr.close()
+        
+    # checks to see what fantasydata sets have already been loaded, and returns non-loaded list
+    # helps avoid reloading the same players each time (to save time)
+    def getNonLoadedPlayers(self):
+        remainingPlayersIDs = []
+        
+        for i in self.fantasyPlayerIDs:
+            # if file does not exists for player, then append to array
+            if (not exists(self.dateSubstring + "\\" + str(i) + "$" + self.dateSubstring + ".csv")):
+                remainingPlayersIDs.append(i)
+                
+        return remainingPlayersIDs
      
     # loads all data, both general and player specific data frames   
     def loadData(self, date):
