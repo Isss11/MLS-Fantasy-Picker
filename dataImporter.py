@@ -109,17 +109,16 @@ class DataImporter:
         
         # getting MLS Fantasy IDs, and then finding all the ones that don't have files created
         self.extractFantasyIDs(email, password)
-        remainingPlayerIDs = self.getNonLoadedPlayers()
-        
+                
         # save fantasy IDs to a file
         fptr = open(self.dateSubstring + "\\" + "fantasyIDs$" + self.date + "_data" + ".csv", "w")
     
-        for i in remainingPlayerIDs:
+        for i in self.fantasyPlayerIDs:
             fptr.write(str(i) + ", ")
             
         fptr.close()
-        
-        for i in remainingPlayerIDs:
+                
+        for i in self.fantasyPlayerIDs:
             print(i)
             fantasyData.driver.get("https://fantasy.mlssoccer.com/#stats-center/player-profile/" + str(i)) 
             

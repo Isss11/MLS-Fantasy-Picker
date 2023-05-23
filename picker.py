@@ -5,11 +5,6 @@ class Picker:
     def __init__(self, goalkeepers, defenders, midfielders, forwards) -> None:
         self.budget = 100000000
         self.positionAllocations = (2, 5, 5, 3) # picks 4-4-2 formation with 1 sub each
-        # position budgets will be used as the budget allocated in the Knapsack problem selection
-        self.positionBudgets = (self.budget * self.positionAllocations[0]/ NUM_PLAYERS,self.budget * self.positionAllocations[1] / NUM_PLAYERS,
-                                self.budget * self.positionAllocations[2]/ NUM_PLAYERS, self.budget * self.positionAllocations[3]/ NUM_PLAYERS)
-        
-        print(self.positionBudgets)
         
         # storing data frames of each position
         self.goalkeepers = goalkeepers
@@ -50,69 +45,161 @@ class Picker:
         for i in range(self.positionAllocations[3]):
             self.forwardsChosen.append(i)  
             
-        goalkeepersCost, defendersCost, midfielderCost, forwardsCost, totalCost = self.getTeamCosts(self.goalkeepersChosen, 
-                                                                    self.defendersChosen, self.midfieldersChosen, self.forwardsChosen)
+        totalCost = self.getTeamCosts()
         
         # if best team is over the budget, perform the following greedy algorithm until it is below the budget
+        # FIXME will need to account for times when there are over 3 playerson one team
         while (totalCost > self.budget):
-            # multipliers are the ratio of how underpriced/overpriced each position is (which to increment)
-            goalkeeperMult = goalkeepersCost/self.positionBudgets[0]
-            defenderMult = defendersCost/self.positionBudgets[1]
-            midfielderMult = midfielderCost/self.positionBudgets[2]
-            forwardsMult = forwardsCost/self.positionBudgets[3]
+            # will find highest cost player and move them
+            highestCostPosition = 0 # setting to goalkeeper by default
+            highestCostPlayer = 0
+            costofHighestPlayer = (self.goalkeepers.iloc[self.goalkeepersChosen[0]])['player_price']
             
-            print(goalkeeperMult, defenderMult, midfielderMult, forwardsMult)
-            
-            # determine what position is the most overspent on relative to its budget and change those associated players
-            highestMultInd = self.getMaxVal(goalkeeperMult, defenderMult, midfielderMult, forwardsMult)
-            
-            print(highestMultInd)
-            
-            if highestMultInd == 0:
-                for i in range(len(self.goalkeepersChosen)):
-                    self.goalkeepersChosen[i] += 1
-            elif highestMultInd == 1:
-                for i in range(len(self.defendersChosen)):
-                    self.defendersChosen[i] += 1
-            elif highestMultInd == 2:
-                for i in range(len(self.midfieldersChosen)):
-                    self.midfieldersChosen[i] += 1
-            else:
-                for i in range(len(self.forwardsChosen)):
-                    self.forwardsChosen[i] += 1
+            for i in range (len(self.goalkeepersChosen)):
+                if (self.goalkeepers.iloc[self.goalkeepersChosen[i]])['player_price'] > costofHighestPlayer:
+                    costofHighestPlayer = (self.goalkeepers.iloc[self.goalkeepersChosen[i]])['player_price']
+                    highestCostPlayer = i
                     
+            for i in range (len(self.defendersChosen)):
+                if (self.defenders.iloc[self.defendersChosen[i]])['player_price'] > costofHighestPlayer:
+                    costofHighestPlayer = (self.defenders.iloc[self.defendersChosen[i]])['player_price']
+                    highestCostPosition = 1
+                    highestCostPlayer = i
+                    
+            for i in range (len(self.midfieldersChosen)):
+                if (self.midfielders.iloc[self.midfieldersChosen[i]])['player_price'] > costofHighestPlayer:
+                    costofHighestPlayer = (self.midfielders.iloc[self.midfieldersChosen[i]])['player_price']
+                    highestCostPosition = 2
+                    highestCostPlayer = i
+                    
+            for i in range (len(self.forwardsChosen)):
+                if (self.forwards.iloc[self.forwardsChosen[i]])['player_price'] > costofHighestPlayer:
+                    costofHighestPlayer = (self.forwards.iloc[self.forwardsChosen[i]])['player_price']
+                    highestCostPosition = 3
+                    highestCostPlayer = i
+                    
+            # after picking highest player in highest position, we should move the player to the one after the latest index in that position
+            if highestCostPosition == 0:
+                listToChange = self.goalkeepersChosen
+            elif highestCostPosition == 1:
+                listToChange = self.defendersChosen
+            elif highestCostPosition == 2:
+                listToChange = self.midfieldersChosen
+            elif highestCostPosition == 3:
+                listToChange = self.forwardsChosen
+            
+            # finding highest index so that we can increment after that (to avoid picking the same player)
+            highestIndexInPosition = listToChange[0]
+            
+            for i in listToChange:
+                if i > highestIndexInPosition:
+                    highestIndexInPosition = i
+                    
+            # now incrementing highest cost player to the next index (after corresponding higestIndexInPosition in respective position)
+            listToChange[highestCostPlayer] = highestIndexInPosition + 1
+                                
             # checking cost again to see if this complies with the rules
-            goalkeepersCost, defendersCost, midfielderCost, forwardsCost, totalCost = self.getTeamCosts(self.goalkeepersChosen, 
-                                                                    self.defendersChosen, self.midfieldersChosen, self.forwardsChosen)
+            totalCost = self.getTeamCosts()
+            
+            # now need to check to make sure there are not over 3 players from one team (have to check for multiple cases as well)
+            teamCounts, teamPlayers = self.getTeamPlayers()
+            self.adjustForMaxTeamCount(1, teamCounts, teamPlayers)
             
             print("Current cost is ", totalCost)
             
         print("Total cost is ", totalCost)
             
+    # adjusts teams when they have over the maximum amount of players from a single team
+    # takes a maximum amount of players, and two dictionaries holding the counts and the team players, respectively
+    def adjustForMaxTeamCount(self, maxPlayers, teamCounts, teamPlayers):
+        teamsToAdjust = dict()
+        
+        # for all teams that have more players then maxPlayers, put them into this dictionary so that we can deal with them
+        for i in teamCounts:
+            if teamCounts[i] > maxPlayers:
+                teamsToAdjust.update({i : teamPlayers[i]}) 
+                
+        # we will pick the teams with lowest indices (lowest prediced scores, and update those so that the maximum player
+        # condition is satisfied)
+        for i in teamsToAdjust:
+            pass    
+            
     # checks team cost so that we can see if it is over 100 million
-    def getTeamCosts(self, goalkeepersChosen, defendersChosen, midfieldersChosen, forwardsChosen):
+    def getTeamCosts(self):
         goalkeepersCost = 0
         defendersCost = 0
         midfieldersCost = 0
         forwardsCost = 0
         
-        for i in goalkeepersChosen:
+        for i in self.goalkeepersChosen:
             goalkeepersCost += (self.goalkeepers.iloc[i])['player_price']
             
-        for i in defendersChosen:
+        for i in self.defendersChosen:
             defendersCost += (self.defenders.iloc[i])['player_price']
             
-        for i in midfieldersChosen:
+        for i in self.midfieldersChosen:
             midfieldersCost += (self.midfielders.iloc[i])['player_price']
             
-        for i in forwardsChosen:
+        for i in self.forwardsChosen:
             forwardsCost += (self.forwards.iloc[i])['player_price']
-            
-        print(goalkeepersCost, defendersCost, midfieldersCost, forwardsCost)
             
         totalCost = goalkeepersCost + defendersCost + midfieldersCost + forwardsCost
         
-        return goalkeepersCost, defendersCost, midfieldersCost, forwardsCost, totalCost
+        return totalCost
+    
+    # creates and returns two dictionaries with the players counts on each team and the player indices, according to the sorted predictions
+    # arrays
+    def getTeamPlayers(self):
+        teamCountsDictionary = dict()
+        teamPlayersDictionary = dict()
+        
+        for i in self.goalkeepersChosen:
+            try:
+                currentTeamCount = teamCountsDictionary[(self.goalkeepers.iloc[i])['player_team']]
+            # if team is not in dictionary, team count is zero
+            except KeyError:
+                currentTeamCount = 0
+                # mapping a list to the players dictionary, will append corresponding player indices to it
+                teamPlayersDictionary.update({(self.goalkeepers.iloc[i])['player_team'] : []})
+                
+            teamCountsDictionary.update({(self.goalkeepers.iloc[i])['player_team'] : currentTeamCount + 1})
+            teamPlayersDictionary[(self.goalkeepers.iloc[i])['player_team']].append(i)
+
+        
+        for i in self.defendersChosen:
+            try:
+                currentTeamCount = teamCountsDictionary[(self.defenders.iloc[i])['player_team']]
+            except KeyError:
+                currentTeamCount = 0
+                teamPlayersDictionary.update({(self.defenders.iloc[i])['player_team'] : []})
+
+                
+            teamCountsDictionary.update({(self.defenders.iloc[i])['player_team'] : currentTeamCount + 1})
+            teamPlayersDictionary[(self.defenders.iloc[i])['player_team']].append(i)
+
+         
+        for i in self.midfieldersChosen:
+            try:
+                currentTeamCount = teamCountsDictionary[(self.midfielders.iloc[i])['player_team']]
+            except KeyError:
+                currentTeamCount = 0
+                teamPlayersDictionary.update({(self.midfielders.iloc[i])['player_team'] : []})
+                
+            teamCountsDictionary.update({(self.midfielders.iloc[i])['player_team'] : currentTeamCount + 1})
+            teamPlayersDictionary[(self.midfielders.iloc[i])['player_team']].append(i)
+
+              
+        for i in self.forwardsChosen:
+            try:
+                currentTeamCount = teamCountsDictionary[(self.forwards.iloc[i])['player_team']]
+            except KeyError:
+                currentTeamCount = 0
+                teamPlayersDictionary.update({(self.forwards.iloc[i])['player_team'] : []})
+
+            teamCountsDictionary.update({(self.forwards.iloc[i])['player_team'] : currentTeamCount + 1})    
+            teamPlayersDictionary[(self.forwards.iloc[i])['player_team']].append(i)
+        
+        return teamCountsDictionary, teamPlayersDictionary
     
     # gets 4 values (really just for the 4 multiplier values and returns 0, 1, 2, or 3 depending on what is the largest)
     def getMaxVal(self, val1, val2, val3, val4):
